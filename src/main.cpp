@@ -13,7 +13,7 @@
 #include <web_server.h>
 #include <main.h>
 
-// define WIFI_SSID WIFI_PSW  
+// define WIFI_SSID WIFI_PSW
 #include <const_wifi.h>
 
 WiFiMulti wifiMulti;
@@ -21,19 +21,19 @@ Audio *audio = nullptr;
 bool is_audio = 1;
 int IR_CODE_SHOW = 0;
 
-struct {
-int8_t audio_volume = 0;
-int8_t audio_eq1 = 0;
-int8_t audio_eq2 = 0;
-int8_t audio_eq3 = 0;
-int8_t set_mode= 0;
-uint8_t radio_mode = 0;
-char title[100] = {};
-char artist[100] = {};
-char play_url[255] = {};
-long play_id = 0;
+struct STATE
+{
+    int8_t audio_volume = 0;
+    int8_t audio_eq1 = 0;
+    int8_t audio_eq2 = 0;
+    int8_t audio_eq3 = 0;
+    int8_t set_mode = 0;
+    uint8_t radio_mode = 0;
+    char title[100] = {};
+    char artist[100] = {};
+    char play_url[255] = {};
+    long play_id = 0;
 } play;
-
 
 bool need_save = 0;
 bool need_display_off = 1;
@@ -45,7 +45,7 @@ decode_results irResults;
 
 const String SITE_URL = SITE_MAIN_URL PROGMEM;
 
-enum
+enum STATE_PLAYER
 {
     PLAYER_UNKNOW = 0,
     PLAYER_READY = 1,
@@ -54,14 +54,14 @@ enum
     PLAYER_PAUSE = 4
 } player_status;
 
-enum
+enum STATE_PLAYER_MODE
 {
     PLAY_TRACK_NEXT = 0,
     PLAY_ALBUM_NEXT = -1,
     PLAY_ALBUM_PREV = -2,
     PLAY_TRACK_PREV = -3,
     PLAY_TRACK = -4,
-} PLAY_MODE;
+} play_mode;
 
 String USER_ID = "";
 
@@ -92,8 +92,6 @@ void audio_init()
         audio = new Audio(false);
 
     audio->setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-    
-
 
     if (time_hour < MUTE_HOUR_MIN || time_hour > MUTE_HOUR_MAX)
         audio_set_volume(1);
@@ -157,9 +155,9 @@ void wifi_init()
     WiFi.mode(WIFI_STA);
     wifiMulti.addAP(WIFI_SSID, WIFI_PSW);
 
-    #if defined(WIFI_SSID_1) && defined(WIFI_PSW_1)
+#if defined(WIFI_SSID_1) && defined(WIFI_PSW_1)
     wifiMulti.addAP(WIFI_SSID_1, WIFI_PSW_1);
-    #endif
+#endif
 
     wifiMulti.run();
 
@@ -188,7 +186,7 @@ void audio_play_next(const int8_t idx)
         serverPath = serverPath + "&idx=ablum_" + idx;
     else if (idx == PLAY_ALBUM_NEXT)
         serverPath = serverPath + "&idx=ablum_next";
-    else if (idx == -PLAY_ALBUM_PREV)
+    else if (idx == PLAY_ALBUM_PREV)
         serverPath = serverPath + "&idx=ablum_prev";
     else if (idx == PLAY_TRACK_PREV)
         serverPath = serverPath + "&idx=track_prev";
@@ -362,18 +360,18 @@ void ir_command_audio(uint64_t ir_code)
         audio_play_next();
         break;
     case IR_CODE_PLAY_PREV:
-        if (play.set_mode!= SET_MODE_RES_MYWAVE)
+        if (play.set_mode != SET_MODE_RES_MYWAVE)
             audio_play_next(PLAY_TRACK_PREV);
         break;
     case IR_CODE_VOL_D:
-        play.set_mode= SET_MODE_VOLUME;
+        play.set_mode = SET_MODE_VOLUME;
         if (play.audio_volume > CONST_VOLUME_MIN)
             play.audio_volume = audio_get_volume() - 1;
         lcd_show_setting_mode(play.audio_volume);
         audio_set_volume(play.audio_volume);
         break;
     case IR_CODE_VOL_U:
-        play.set_mode= SET_MODE_VOLUME;
+        play.set_mode = SET_MODE_VOLUME;
         play.audio_volume = audio_get_volume() + 1;
         if (play.audio_volume > CONST_VOLUME_MAX)
             play.audio_volume = CONST_VOLUME_MAX;
@@ -381,48 +379,48 @@ void ir_command_audio(uint64_t ir_code)
         audio_set_volume(play.audio_volume);
         break;
     case IR_CODE_SELECT_EQ:
-        if (play.set_mode> SET_MODE_EQ3)
-            play.set_mode= SET_MODE_IDL;
-        if (play.set_mode== SET_MODE_IDL)
+        if (play.set_mode > SET_MODE_EQ3)
+            play.set_mode = SET_MODE_IDL;
+        if (play.set_mode == SET_MODE_IDL)
         {
-            play.set_mode= SET_MODE_EQ1;
+            play.set_mode = SET_MODE_EQ1;
             lcd_show_setting_mode(play.audio_eq1);
             break;
         }
-        if (play.set_mode== SET_MODE_EQ1)
+        if (play.set_mode == SET_MODE_EQ1)
         {
-            play.set_mode= SET_MODE_EQ2;
+            play.set_mode = SET_MODE_EQ2;
             lcd_show_setting_mode(play.audio_eq2);
             break;
         }
-        if (play.set_mode== SET_MODE_EQ2)
+        if (play.set_mode == SET_MODE_EQ2)
         {
-            play.set_mode= SET_MODE_EQ3;
+            play.set_mode = SET_MODE_EQ3;
             lcd_show_setting_mode(play.audio_eq3);
             break;
         }
-        if (play.set_mode== SET_MODE_EQ3)
+        if (play.set_mode == SET_MODE_EQ3)
         {
-            play.set_mode= SET_MODE_EQ1;
+            play.set_mode = SET_MODE_EQ1;
             lcd_show_setting_mode(play.audio_eq1);
             break;
         }
         break;
     case IR_CODE_SET_UP:
         //-- eq setup mode
-        if (play.set_mode== SET_MODE_EQ1 or play.set_mode== SET_MODE_EQ2 or play.set_mode== SET_MODE_EQ3)
+        if (play.set_mode == SET_MODE_EQ1 or play.set_mode == SET_MODE_EQ2 or play.set_mode == SET_MODE_EQ3)
         {
-            if (play.set_mode== SET_MODE_EQ1 && play.audio_eq1 < CONST_EQ_MAX)
+            if (play.set_mode == SET_MODE_EQ1 && play.audio_eq1 < CONST_EQ_MAX)
             {
                 play.audio_eq1++;
                 lcd_show_setting_mode(play.audio_eq1);
             }
-            if (play.set_mode== SET_MODE_EQ2 && play.audio_eq2 < CONST_EQ_MAX)
+            if (play.set_mode == SET_MODE_EQ2 && play.audio_eq2 < CONST_EQ_MAX)
             {
                 play.audio_eq2++;
                 lcd_show_setting_mode(play.audio_eq2);
             }
-            if (play.set_mode== SET_MODE_EQ3 && play.audio_eq3 < CONST_EQ_MAX)
+            if (play.set_mode == SET_MODE_EQ3 && play.audio_eq3 < CONST_EQ_MAX)
             {
                 play.audio_eq3++;
                 lcd_show_setting_mode(play.audio_eq3);
@@ -434,19 +432,19 @@ void ir_command_audio(uint64_t ir_code)
         break;
     case IR_CODE_SET_DOWN:
         //-- eq setup mode
-        if (play.set_mode== SET_MODE_EQ1 or play.set_mode== SET_MODE_EQ2 or play.set_mode== SET_MODE_EQ3)
+        if (play.set_mode == SET_MODE_EQ1 or play.set_mode == SET_MODE_EQ2 or play.set_mode == SET_MODE_EQ3)
         {
-            if (play.set_mode== SET_MODE_EQ1 && play.audio_eq1 > CONST_EQ_MIN)
+            if (play.set_mode == SET_MODE_EQ1 && play.audio_eq1 > CONST_EQ_MIN)
             {
                 play.audio_eq1--;
                 lcd_show_setting_mode(play.audio_eq1);
             }
-            if (play.set_mode== SET_MODE_EQ2 && play.audio_eq2 > CONST_EQ_MIN)
+            if (play.set_mode == SET_MODE_EQ2 && play.audio_eq2 > CONST_EQ_MIN)
             {
                 play.audio_eq2--;
                 lcd_show_setting_mode(play.audio_eq2);
             }
-            if (play.set_mode== SET_MODE_EQ3 && play.audio_eq3 > CONST_EQ_MIN)
+            if (play.set_mode == SET_MODE_EQ3 && play.audio_eq3 > CONST_EQ_MIN)
             {
                 play.audio_eq3--;
                 lcd_show_setting_mode(play.audio_eq3);
@@ -457,32 +455,32 @@ void ir_command_audio(uint64_t ir_code)
         audio_play_next(PLAY_ALBUM_PREV);
         break;
     case IR_CODE_CHANGE_RESOUCE:
-        if (play.set_mode!= SET_MODE_RES_MYWAVE and play.set_mode!= SET_MODE_RES_MYFAVORITE and play.set_mode!= SET_MODE_RES_ONLINE)
-            play.set_mode= SET_MODE_RES_MYWAVE;
-        else if (play.set_mode== SET_MODE_RES_MYWAVE)
-            play.set_mode= SET_MODE_RES_MYFAVORITE;
-        else if (play.set_mode== SET_MODE_RES_MYFAVORITE)
-            play.set_mode= SET_MODE_RES_ONLINE;
-        else if (play.set_mode== SET_MODE_RES_ONLINE)
-            play.set_mode= SET_MODE_RES_MYWAVE;
+        if (play.set_mode != SET_MODE_RES_MYWAVE and play.set_mode != SET_MODE_RES_MYFAVORITE and play.set_mode != SET_MODE_RES_ONLINE)
+            play.set_mode = SET_MODE_RES_MYWAVE;
+        else if (play.set_mode == SET_MODE_RES_MYWAVE)
+            play.set_mode = SET_MODE_RES_MYFAVORITE;
+        else if (play.set_mode == SET_MODE_RES_MYFAVORITE)
+            play.set_mode = SET_MODE_RES_ONLINE;
+        else if (play.set_mode == SET_MODE_RES_ONLINE)
+            play.set_mode = SET_MODE_RES_MYWAVE;
         play.radio_mode = play.set_mode;
         lcd_show_setting_mode();
         audio_play_next();
         break;
     case IR_CODE_CHANGE_RESOUCE_WAVE:
-        play.set_mode= SET_MODE_RES_MYWAVE;
+        play.set_mode = SET_MODE_RES_MYWAVE;
         play.radio_mode = play.set_mode;
         lcd_show_setting_mode();
         audio_play_next();
         break;
     case IR_CODE_CHANGE_RESOUCE_FAVORITE:
-        play.set_mode= SET_MODE_RES_MYFAVORITE;
+        play.set_mode = SET_MODE_RES_MYFAVORITE;
         play.radio_mode = play.set_mode;
         lcd_show_setting_mode();
         audio_play_next();
         break;
     case IR_CODE_CHANGE_RESOUCE_RADIO:
-        play.set_mode= SET_MODE_RES_ONLINE;
+        play.set_mode = SET_MODE_RES_ONLINE;
         play.radio_mode = play.set_mode;
         lcd_show_setting_mode();
         audio_play_next();
@@ -507,6 +505,15 @@ void ir_command_audio(uint64_t ir_code)
         break;
     case IR_CODE_ON_OFF:
         digitalWrite(RELAY_PIN, !digitalRead(RELAY_PIN));
+        if (digitalRead(RELAY_PIN) == LOW)
+        {
+            audio_play_next(PLAY_TRACK);
+        }
+        else
+        {
+            audio_stop();
+        }
+        delay(1000);
         break;
     default:
         break;
@@ -735,7 +742,7 @@ void lcd_show_setting_mode(const int8_t value)
         break;
     }
     lcd.clearDisplay();
-    if (play.set_mode< SET_MODE_RES_MYWAVE)
+    if (play.set_mode < SET_MODE_RES_MYWAVE)
     {
         lcd.setTextSize(2);
         lcd.setCursor(0, CONST_LCD_ROW_MODE);
@@ -762,7 +769,6 @@ void lcd_show_wifi_info()
     lcd.setTextSize(1);
     lcd.setCursor(SCREEN_WIDTH - FONT_1_WIDTH * 4, CONST_LCD_ROW_AUDIO_INFO);
     lcd.print(WiFi.RSSI());
-
 }
 
 void ws_json_user_setting()
@@ -1021,7 +1027,7 @@ void user_setting_get()
     if (myObject.hasOwnProperty("start_auto_play"))
         start_auto_play = atoi(myObject["start_auto_play"]);
 
-    // Serial.println(myObject);
+    Serial.println(myObject);
 
     if (time_hour < MUTE_HOUR_MIN || time_hour > MUTE_HOUR_MAX)
         audio_set_volume(1);
@@ -1056,7 +1062,7 @@ void setup()
     init();
     console_init();
     irrecv.enableIRIn();
-    play.set_mode= SET_MODE_IDL;
+    play.set_mode = SET_MODE_IDL;
     lcd_init();
     lcd_show_system_info("start yandex music");
     wifi_init();
