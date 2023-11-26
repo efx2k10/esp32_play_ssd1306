@@ -507,6 +507,7 @@ void ir_command_audio(uint64_t ir_code)
         digitalWrite(RELAY_PIN, !digitalRead(RELAY_PIN));
         if (digitalRead(RELAY_PIN) == LOW)
         {
+            user_setting_get();
             audio_play_next(PLAY_TRACK);
         }
         else
@@ -880,6 +881,7 @@ void ws_command_http_parse(String str)
     {
         digitalWrite(RELAY_PIN, LOW);
         ws_json_esp_status();
+        user_setting_get();
 
         if (start_auto_play)
             audio_play_next(PLAY_TRACK);
