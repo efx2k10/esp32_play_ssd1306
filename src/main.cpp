@@ -1,74 +1,10 @@
-#include "Arduino.h"
-#include "WiFiMulti.h"
-#include "HTTPClient.h"
-#include "Audio.h"
-#include "Arduino_JSON.h"
-#include "Adafruit_SSD1306.h"
-#include <IRremoteESP8266.h>
-#include <IRrecv.h>
-#include <ir_code.h>
-#include <const.h>
-#include <helper.h>
-#include <AsyncElegantOTA.h>
-#include <web_server.h>
-#include <main.h>
-
-// define WIFI_SSID WIFI_PSW
-#include <const_wifi.h>
-
-WiFiMulti wifiMulti;
-Audio *audio = nullptr;
-bool is_audio = 1;
-int IR_CODE_SHOW = 0;
-
-struct STATE
-{
-    int8_t audio_volume = 0;
-    int8_t audio_eq1 = 0;
-    int8_t audio_eq2 = 0;
-    int8_t audio_eq3 = 0;
-    int8_t set_mode = 0;
-    uint8_t radio_mode = 0;
-    char title[100] = {};
-    char artist[100] = {};
-    char play_url[255] = {};
-    long play_id = 0;
-} play;
-
-bool need_save = 0;
-bool need_display_off = 1;
-bool start_auto_play = 1;
-
-uint8_t time_hour = 0;
-IRrecv irrecv(IR_PIN);
-decode_results irResults;
-
-const String SITE_URL = SITE_MAIN_URL PROGMEM;
-
-enum STATE_PLAYER
-{
-    PLAYER_UNKNOW = 0,
-    PLAYER_READY = 1,
-    PLAYER_STOP = 2,
-    PLAYER_PLAY = 3,
-    PLAYER_PAUSE = 4
-} player_status;
-
-enum STATE_PLAYER_MODE
-{
-    PLAY_TRACK_NEXT = 0,
-    PLAY_ALBUM_NEXT = -1,
-    PLAY_ALBUM_PREV = -2,
-    PLAY_TRACK_PREV = -3,
-    PLAY_TRACK = -4,
-} play_mode;
-
-String USER_ID = "";
-
-String ws_command = "";
-
-int8_t screen_mode = CONST_SCREEN_IDL;
-Adafruit_SSD1306 lcd(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+#include "header.h"
+#ifdef DISPLAY_SSD1306
+#include "hw/ssd1306.h"
+#endif
+#ifdef DISPLAY_NO
+#include "hw/nodisplay.h"
+#endif
 
 void init()
 {
@@ -200,7 +136,7 @@ void audio_play_next(const int8_t idx)
     {
         Serial.println("Parsing input failed!");
         lcd_show_system_info("error play track");
-        lcd.clearDisplay();
+        lcd_clear();
         audio_play_next();
         return;
     }
@@ -237,7 +173,7 @@ void audio_play_next(const int8_t idx)
     }
 
     screen_mode = CONST_SCREEN_PLAY;
-    lcd.clearDisplay();
+    lcd_clear();
     lcd_show_progress_bar(1);
     lcd_show_audio_title();
     lcd_show_audio_info(1);
@@ -538,7 +474,7 @@ void ir_command()
         };
         if (need_display_off < 1)
         {
-            lcd.ssd1306_command(SSD1306_DISPLAYON);
+            lcd_on();
         }
         need_display_off = 1;
         if (audio != nullptr and is_audio == 1)
@@ -549,403 +485,6 @@ void ir_command()
     irrecv.resume();
 }
 
-void lcd_init()
-{
-    if (!lcd.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS))
-    {
-        Serial.println(F("SSD1306 allocation failed"));
-        for (;;)
-            ; // Don't proceed, loop forever
-    }
-    lcd.setTextSize(1);
-    lcd.setTextColor(SSD1306_WHITE);
-    lcd.clearDisplay();
-    lcd.display();
-}
-void lcd_show_audio_info(const byte resset)
-{
-    if (audio == nullptr)
-        return;
-    if (screen_mode != CONST_SCREEN_PLAY)
-        return;
-    static uint16_t bitRate = 0;
-    if (resset == 1)
-    {
-        bitRate = 0;
-    }
-    if (bitRate > 0)
-        return;
-    bitRate = audio->getBitRate() / 1000;
-    if (bitRate < 1)
-        return;
-    lcd.setTextSize(1);
-    lcd.setCursor(0, CONST_LCD_ROW_AUDIO_INFO);
-    lcd.print(audio->getCodecname());
-    lcd.print("-");
-    lcd.print(bitRate);
-    lcd.print("  ");
-    lcd.print(get_radio_mode_lcd());
-    lcd.display();
-}
-void lcd_show_audio_title()
-{
-    if (audio == nullptr)
-        return;
-    if (screen_mode != CONST_SCREEN_PLAY)
-        return;
-    lcd.setTextSize(2);
-    lcd.setTextWrap(0);
-    String line = utf8rus(play.title) + " - " + utf8rus(play.artist);
-    static int16_t line_pos = 0;
-    int16_t line_len = line.length();
-    line_pos--;
-    if (line_pos <= (-line_len - SCREEN_WIDTH / (FONT_1_WIDTH * 2)))
-        line_pos = SCREEN_WIDTH / (FONT_1_WIDTH * 2);
-    lcd.fillRect(0, CONST_LCD_ROW_TITLE, SCREEN_WIDTH, FONT_1_HEIGHT * 2, SSD1306_BLACK);
-    lcd.setCursor(line_pos * FONT_1_WIDTH * 2, CONST_LCD_ROW_TITLE);
-    lcd.print(line);
-    lcd.display();
-}
-void lcd_show_player_status()
-{
-    lcd.clearDisplay();
-    lcd.setTextSize(4);
-    switch (player_status)
-    {
-    case PLAYER_PLAY:
-        lcd.print("PLAY");
-        break;
-    case PLAYER_STOP:
-        lcd.print("STOP");
-        break;
-    case PLAYER_PAUSE:
-        lcd.print("PAUSE");
-        break;
-    case PLAYER_UNKNOW:
-        lcd.print("UNKNOW");
-        break;
-    case PLAYER_READY:
-        lcd.println("READY");
-        lcd.setTextSize(1);
-        lcd.println(WiFi.localIP());
-        break;
-    default:
-        lcd.print("????");
-        break;
-        break;
-    }
-    lcd.display();
-}
-void lcd_show_progress_bar(const byte resset)
-{
-    if (audio == nullptr)
-        return;
-    if (screen_mode != CONST_SCREEN_PLAY)
-        return;
-    static int8_t bar_tmp = -1;
-    if (resset == 1)
-        bar_tmp = -1;
-    int max = audio->getAudioFileDuration();
-    int pos = audio->getAudioCurrentTime();
-    int8_t bar = 0;
-    if (max > 0)
-        bar = (pos * (SCREEN_WIDTH / 2)) / max;
-    lcd.setTextSize(1);
-    lcd.fillRect(0, CONST_LCD_ROW_PROGRESS, SCREEN_WIDTH, CONST_LCD_ROW_PROGRESS + 12, SSD1306_BLACK);
-    lcd.fillRect(0, CONST_LCD_ROW_PROGRESS, bar, CONST_LCD_ROW_PROGRESS + 12, SSD1306_WHITE);
-    if (max > 0)
-    {
-        lcd.setCursor(SCREEN_WIDTH / 2 + 4, CONST_LCD_ROW_PROGRESS + 2);
-    }
-    else
-    {
-        lcd.setCursor(SCREEN_WIDTH / 2 - 16, CONST_LCD_ROW_PROGRESS + 2);
-    }
-    if (player_status == PLAYER_PLAY)
-    {
-        int8_t min = pos / 60;
-        int8_t sec = pos % 60;
-        if (min < 10)
-            lcd.print(" ");
-        lcd.print(min);
-        lcd.print(":");
-        if (sec < 10)
-            lcd.print("0");
-        lcd.print(sec);
-        if (max > 0)
-        {
-            min = max / 60;
-            sec = max % 60;
-            lcd.print("/");
-            lcd.print(min);
-            lcd.print(":");
-            if (sec < 10)
-                lcd.print("0");
-            lcd.print(sec);
-        }
-    }
-    else if (player_status == PLAYER_PAUSE)
-    {
-        lcd.print("PAUSE");
-    }
-    else if (player_status == PLAYER_STOP)
-    {
-        lcd.print("STOP");
-    }
-    lcd.display();
-}
-void lcd_show_system_info(String in_string)
-{
-    lcd.setTextSize(1);
-    lcd.setTextWrap(1);
-    lcd.clearDisplay();
-    lcd.display();
-    int8_t pos = (SCREEN_WIDTH - utf8rus(in_string).length() * FONT_1_WIDTH) / 2;
-    if (pos < 0)
-        pos = 0;
-    lcd.setCursor(pos, CONST_LCD_ROW_INFO);
-    lcd.println(utf8rus(in_string));
-    lcd.display();
-    delay(100);
-}
-void lcd_show_setting_mode(const int8_t value)
-{
-    if (screen_mode != CONST_SCREEN_SETTING)
-        screen_mode = CONST_SCREEN_SETTING;
-    String set_mode_name = "";
-    switch (play.set_mode)
-    {
-    case SET_MODE_IDL:
-        set_mode_name = "IDL";
-        break;
-    case SET_MODE_EQ1:
-        set_mode_name = "EQ1";
-        break;
-    case SET_MODE_EQ2:
-        set_mode_name = "EQ2";
-        break;
-    case SET_MODE_EQ3:
-        set_mode_name = "EQ3";
-        break;
-    case SET_MODE_VOLUME:
-        set_mode_name = "VOLUME";
-        break;
-    case SET_MODE_RES_MYWAVE:
-        set_mode_name = "WAV";
-        break;
-    case SET_MODE_RES_MYFAVORITE:
-        set_mode_name = "FAV";
-        break;
-    case SET_MODE_RES_ONLINE:
-        set_mode_name = "RAD";
-        break;
-    default:
-        break;
-    }
-    lcd.clearDisplay();
-    if (play.set_mode < SET_MODE_RES_MYWAVE)
-    {
-        lcd.setTextSize(2);
-        lcd.setCursor(0, CONST_LCD_ROW_MODE);
-        lcd.print(set_mode_name);
-        lcd.setTextSize(4);
-        lcd.setCursor(0, CONST_LCD_ROW_MODE + FONT_1_HEIGHT * 2);
-        lcd.print(value);
-    }
-    else
-    {
-        lcd.setTextSize(7);
-        lcd.setCursor(0, CONST_LCD_ROW_MODE);
-        lcd.print(set_mode_name);
-    }
-    lcd.display();
-    need_save = 1;
-    delay(DELAY_IR_POST);
-}
-void lcd_show_wifi_info()
-{
-    if (screen_mode != CONST_SCREEN_PLAY)
-        return;
-    lcd.fillRect(SCREEN_WIDTH - FONT_1_WIDTH * 4, CONST_LCD_ROW_AUDIO_INFO, FONT_1_WIDTH * 4, FONT_1_HEIGHT, SSD1306_BLACK);
-    lcd.setTextSize(1);
-    lcd.setCursor(SCREEN_WIDTH - FONT_1_WIDTH * 4, CONST_LCD_ROW_AUDIO_INFO);
-    lcd.print(WiFi.RSSI());
-}
-
-void ws_json_user_setting()
-{
-    String serverPath = SITE_URL + "get_esp32_setting&user=" + USER_ID;
-    String jsonBuffer = httpGETRequest(serverPath.c_str());
-    ws.textAll(jsonBuffer);
-}
-void ws_json_player()
-{
-    String mes = "{\"message_type\":\"player_info\", \"title\":\"" + String(play.title) + "\", \"artist\":\"" + String(play.artist) + "\"  , \"play.play_url\":\"" + String(play.play_url) + "\"  , \"radio_mode\":\"" + String(play.radio_mode) + "\", \"player_status\":\"" + String(player_status) + "\" , \"play.play_id\":\"" + String(play.play_id) + "\" }";
-    ws.textAll(mes);
-}
-void ws_json_player_status(const String info, const String from)
-{
-
-    String mes = "{\"message_type\":\"player_status\", \"message\":\"" + String(info) + "\", \"from\":\"" + String(from) + "\" }";
-    ws.textAll(mes);
-}
-void ws_json_audio_info()
-{
-
-    if (audio == nullptr)
-        return;
-    String mes = "{\"message_type\":\"audio_info\", \"BitRate\":\"" + String(audio->getBitRate()) + "\" , \"BitsPerSample\":\"" + String(audio->getBitsPerSample()) + "\" , \"Codec\":\"" + String(audio->getCodec()) + "\" , \"Codecname\":\"" + String(audio->getCodecname()) + "\"  , \"Volume\":\"" + String(audio->getVolume()) + "\" , \"AudioCurrentTime\":\"" + String(audio->getAudioCurrentTime()) + "\"  , \"AudioFileDuration\":\"" + String(audio->getAudioFileDuration()) + "\" }";
-
-    ws.textAll(mes);
-}
-void ws_json_play_next(const String mes)
-{
-    ws.textAll(String(mes));
-}
-void ws_json_esp_status()
-{
-    String mes = "{\"message_type\":\"esp_status\", \"wifi_rssi\":\"" + String(WiFi.RSSI()) + "\", \"esp_free_psram\":\"" + String(ESP.getFreePsram()) + "\", \"esp_free_heap\":\"" + String(ESP.getFreeHeap()) + "\", \"esp_relay_pin\":\"" + digitalRead(RELAY_PIN) + "\" }";
-    ws.textAll(mes);
-}
-String ws_command_send_http(String name, String value)
-{
-    String serverPath = SITE_URL + "esp32_command=" + name + "&value=" + value + "&user=" + USER_ID;
-    String jsonBuffer = httpGETRequest(serverPath.c_str());
-    return jsonBuffer;
-}
-void ws_command_http_parse(String str)
-{
-    str.trim();
-    String name = str;
-    String val = "";
-
-    uint8_t pos = str.indexOf("=");
-
-    if (pos > 0)
-    {
-        name = str.substring(0, pos);
-        val = str.substring(pos + 1);
-    }
-
-    if (name == "play_next")
-    {
-        audio_play_next(PLAY_TRACK_NEXT);
-        return;
-    }
-
-    if (name == "play")
-    {
-        audio_play_next(PLAY_TRACK);
-        return;
-    }
-
-    if (name == "play_prev")
-    {
-        audio_play_next(PLAY_TRACK_PREV);
-        return;
-    }
-
-    if (name == "play_album_next")
-    {
-        audio_play_next(PLAY_ALBUM_NEXT);
-        return;
-    }
-
-    if (name == "play_album_prev")
-    {
-        audio_play_next(PLAY_ALBUM_PREV);
-        return;
-    }
-
-    if (name == "play_pause")
-    {
-        audio_play_pause();
-        return;
-    }
-
-    if (name == "stop")
-    {
-        audio_stop();
-        return;
-    }
-
-    if (name == "off")
-    {
-        digitalWrite(RELAY_PIN, HIGH);
-        ws_json_esp_status();
-        audio_stop();
-        return;
-    }
-
-    if (name == "on")
-    {
-        digitalWrite(RELAY_PIN, LOW);
-        ws_json_esp_status();
-        user_setting_get();
-
-        if (start_auto_play)
-            audio_play_next(PLAY_TRACK);
-
-        return;
-    }
-    if (name == "get_status")
-    {
-        ws_json_esp_status();
-        return;
-    }
-
-    if (name == "set_mode_wave")
-    {
-        play.radio_mode = SET_MODE_RES_MYWAVE;
-        need_save = 1;
-        audio_play_next(PLAY_TRACK);
-        return;
-    }
-
-    if (name == "set_mode_favorite")
-    {
-        play.radio_mode = SET_MODE_RES_MYFAVORITE;
-        need_save = 1;
-        audio_play_next(PLAY_TRACK);
-        return;
-    }
-
-    if (name == "set_mode_online")
-    {
-        play.radio_mode = SET_MODE_RES_ONLINE;
-        need_save = 1;
-        audio_play_next(PLAY_TRACK);
-        return;
-    }
-
-    if (name == "set_volume")
-    {
-        if (val == "up")
-            audio->setVolume(audio_get_volume() + 1);
-        if (val == "down")
-            audio->setVolume(audio_get_volume() - 1);
-        need_save = 1;
-        return;
-    }
-
-    if (name == "get_audio_info")
-    {
-        ws_json_audio_info();
-        return;
-    }
-
-    if (name == "reload_esp32")
-    {
-        ESP.restart();
-        return;
-    }
-
-    if (name.startsWith("esp32_"))
-    {
-        String mes = ws_command_send_http(name, val);
-        ws.textAll(mes);
-    }
-}
 
 String get_radio_mode_url()
 {
@@ -998,13 +537,9 @@ void user_setting_get()
 
     if (!myObject.hasOwnProperty("user_id"))
     {
-        lcd.clearDisplay();
-        lcd.setCursor(0, 0);
-        lcd.setTextSize(1);
-        lcd.println("USER NOT FOUND");
-        lcd.println();
-        lcd.println(USER_ID);
-        lcd.display();
+        lcd_clear();
+        lcd_show_system_info("USER NOT FOUND " + USER_ID);
+        lcd_update();
         delay(20000);
         ESP.restart();
     }
@@ -1056,7 +591,7 @@ void user_setting_get()
     Serial.println(MUTE_HOUR_MAX);
 
     audio_set_eq();
-    lcd.clearDisplay();
+    lcd_clear();
 }
 
 void setup()
@@ -1068,9 +603,9 @@ void setup()
     lcd_init();
     lcd_show_system_info("start yandex music");
     wifi_init();
-    lcd.clearDisplay();
+    lcd_clear();
     lcd_show_system_info("wifi connected");
-    lcd.clearDisplay();
+    lcd_clear();
     USER_ID = WiFi.macAddress();
     Serial.print("USER_ID = ");
     Serial.println(USER_ID);
@@ -1107,7 +642,7 @@ void loop()
         save_timing = now;
     if (now - display_off_timing > DELAY_DISPLAY_OFF and need_display_off == 1)
     {
-        lcd.ssd1306_command(SSD1306_DISPLAYOFF);
+        lcd_off();
         need_display_off = 0;
     }
 
@@ -1126,7 +661,7 @@ void loop()
         user_setting_update_int8("mode", play.radio_mode);
         Serial.println("save user setting");
         screen_mode = CONST_SCREEN_PLAY;
-        lcd.clearDisplay();
+        lcd_clear();
         lcd_show_wifi_info();
         lcd_show_audio_info(1);
         lcd_show_audio_title();

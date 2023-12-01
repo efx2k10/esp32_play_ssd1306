@@ -1,7 +1,7 @@
 void init();
 void audio_init();
 void console_init();
-void lcd_init();
+
 void web_init();
 void wifi_init();
 void audio_play_next(int8_t idx = 0);
@@ -14,13 +14,7 @@ bool ir_comand_validate(uint64_t ir_code);
 void ir_command_audio(uint64_t ir_code);
 void ir_command();
 
-void lcd_show_audio_info(byte resset = 0);
-void lcd_show_audio_title();
-void lcd_show_player_status();
-void lcd_show_progress_bar(byte resset = 0);
-void lcd_show_system_info(String in_string);
-void lcd_show_setting_mode(int8_t value = 0);
-void lcd_show_wifi_info();
+
 
 void ws_json_user_setting();
 void ws_json_player();
