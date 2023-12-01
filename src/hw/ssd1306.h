@@ -1,4 +1,5 @@
 #include "header.h"
+#ifdef DISPLAY_SSD1306
 #include "Adafruit_SSD1306.h"
 
 #define SCREEN_WIDTH 128
@@ -34,8 +35,7 @@ void lcd_init()
 }
 void lcd_show_audio_info(const byte resset)
 {
-    if (audio == nullptr)
-        return;
+
     if (screen_mode != CONST_SCREEN_PLAY)
         return;
     static uint16_t bitRate = 0;
@@ -45,12 +45,12 @@ void lcd_show_audio_info(const byte resset)
     }
     if (bitRate > 0)
         return;
-    bitRate = audio->getBitRate() / 1000;
+    bitRate = audio.getBitRate() / 1000;
     if (bitRate < 1)
         return;
     lcd.setTextSize(1);
     lcd.setCursor(0, CONST_LCD_ROW_AUDIO_INFO);
-    lcd.print(audio->getCodecname());
+    lcd.print(audio.getCodecname());
     lcd.print("-");
     lcd.print(bitRate);
     lcd.print("  ");
@@ -59,8 +59,7 @@ void lcd_show_audio_info(const byte resset)
 }
 void lcd_show_audio_title()
 {
-    if (audio == nullptr)
-        return;
+
     if (screen_mode != CONST_SCREEN_PLAY)
         return;
 
@@ -110,15 +109,14 @@ void lcd_show_player_status()
 }
 void lcd_show_progress_bar(const byte resset)
 {
-    if (audio == nullptr)
-        return;
+
     if (screen_mode != CONST_SCREEN_PLAY)
         return;
     static int8_t bar_tmp = -1;
     if (resset == 1)
         bar_tmp = -1;
-    int max = audio->getAudioFileDuration();
-    int pos = audio->getAudioCurrentTime();
+    int max = audio_get_current_duration();
+    int pos = audio_get_current_time();
     int8_t bar = 0;
     if (max > 0)
         bar = (pos * (SCREEN_WIDTH / 2)) / max;
@@ -260,3 +258,4 @@ void lcd_off(){
     lcd.ssd1306_command(SSD1306_DISPLAYOFF);
 }
 
+#endif

@@ -1,29 +1,29 @@
-#ifndef _HEADER
-#define _HEADER
+#ifndef __HEADER_FILE__
+#define __HEADER_FILE__
 
 #include "Arduino.h"
 #include "WiFiMulti.h"
 #include "HTTPClient.h"
-#include "Audio.h"
-#include "Arduino_JSON.h"
+#include "hw.h"
 
+#include "Arduino_JSON.h"
 #include <IRremoteESP8266.h>
 #include <IRrecv.h>
 #include <ir_code.h>
-#include <hw.h>
-#include <const.h>
-#include <helper.h>
-#include <AsyncElegantOTA.h>
-#include <web_server.h>
-#include <main.h>
 
-
+#include "const.h"
+#include "helper.h"
+#ifdef ESP32_PLATFORM_S3
+#include "AsyncElegantOTA.h"
+#endif
+#include "web_server.h"
+#include "main.h"
 
 // define WIFI_SSID WIFI_PSW
-#include <const_wifi.h>
+#include "const_wifi.h"
 
 WiFiMulti wifiMulti;
-Audio *audio = nullptr;
+
 bool is_audio = 1;
 int IR_CODE_SHOW = 0;
 
@@ -70,13 +70,28 @@ enum STATE_PLAYER_MODE
 } play_mode;
 
 String USER_ID = "";
-
 String ws_command = "";
-
 int8_t screen_mode = CONST_SCREEN_IDL;
 
+#include "display.h"
+#include "dac.h"
 
-#include <ws.h>
-#include <display.h>
+#ifdef DAC_PCM5102
+#include "hw/dac_pcm5102.h"
+#endif
+
+#ifdef DAC_VS1053
+#include "hw/dac_vs1053.h"
+#endif
+
+#ifdef DISPLAY_SSD1306
+#include "hw/ssd1306.h"
+#endif
+
+#ifdef DISPLAY_NO
+#include "hw/nodisplay.h"
+#endif
+
+#include "ws.h"
 
 #endif

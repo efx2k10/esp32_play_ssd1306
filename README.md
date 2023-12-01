@@ -9,7 +9,7 @@
 ESP32 PINS
 | HW | ESP32 | ESP32 S3 | 
 | :--- | :---: | :---: |
-|| `DAC PCM5102A`|
+|| `PCM5102A`|
 | I2S_DOUT |27|7|
 | I2S_BCLK |26|6|
 | I2S_LRC |25|5|
@@ -21,12 +21,12 @@ ESP32 PINS
 | VS1053_MISO |19| - |
 | VS1053_SCK |18| - |
 || `DISPLAY SSD1306`|
-| SDA |-| 8 |
-| SDA |-| 9 |
+| SDA |21| 8 |
+| SDA |22| 9 |
 || `IR RECIV` |
 | IN |15| 4 |
 || `RELAY PIN 1` |
-| OUT |19(?)| 15 |
+| OUT |16| 15 |
 
 
 

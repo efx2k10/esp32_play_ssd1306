@@ -1,5 +1,5 @@
 #include "header.h"
-
+#ifdef DISPLAY_NO
 void lcd_init(){}
 void lcd_show_audio_info(const byte resset){}
 void lcd_show_audio_title(){}
@@ -12,3 +12,4 @@ void lcd_clear(){}
 void lcd_update(){}
 void lcd_on(){}
 void lcd_off(){}
+#endif

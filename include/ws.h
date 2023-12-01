@@ -20,9 +20,8 @@ void ws_json_player_status(const String info, const String from)
 void ws_json_audio_info()
 {
 
-    if (audio == nullptr)
-        return;
-    String mes = "{\"message_type\":\"audio_info\", \"BitRate\":\"" + String(audio->getBitRate()) + "\" , \"BitsPerSample\":\"" + String(audio->getBitsPerSample()) + "\" , \"Codec\":\"" + String(audio->getCodec()) + "\" , \"Codecname\":\"" + String(audio->getCodecname()) + "\"  , \"Volume\":\"" + String(audio->getVolume()) + "\" , \"AudioCurrentTime\":\"" + String(audio->getAudioCurrentTime()) + "\"  , \"AudioFileDuration\":\"" + String(audio->getAudioFileDuration()) + "\" }";
+
+    String mes = "{\"message_type\":\"audio_info\", \"BitRate\":\"" + String(audio_get_bitrate()) + "\" , \"BitsPerSample\":\"" + String(audio_get_bitrate()) + "\" , \"Codec\":\"" + String(audio.getCodec()) + "\" , \"Codecname\":\"" + String(audio.getCodecname()) + "\"  , \"Volume\":\"" + String(audio.getVolume()) + "\" , \"AudioCurrentTime\":\"" + String(audio_get_current_time()) + "\"  , \"AudioFileDuration\":\"" + String(audio_get_current_duration()) + "\" }";
 
     ws.textAll(mes);
 }
@@ -149,9 +148,9 @@ void ws_command_http_parse(String str)
     if (name == "set_volume")
     {
         if (val == "up")
-            audio->setVolume(audio_get_volume() + 1);
+            audio.setVolume(audio_get_volume() + 1);
         if (val == "down")
-            audio->setVolume(audio_get_volume() - 1);
+            audio.setVolume(audio_get_volume() - 1);
         need_save = 1;
         return;
     }

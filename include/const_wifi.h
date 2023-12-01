@@ -1,4 +1,3 @@
-//#define WIFI_SSID "m2g"
 #define WIFI_SSID "myinet"
 #define WIFI_PSW "asdf16384"
 

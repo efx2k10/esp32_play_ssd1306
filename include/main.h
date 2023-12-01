@@ -1,15 +1,10 @@
 void init();
-void audio_init();
+
 void console_init();
 
 void web_init();
 void wifi_init();
-void audio_play_next(int8_t idx = 0);
-void audio_play_pause();
-void audio_stop();
-void audio_set_eq();
-int8_t audio_get_volume();
-int8_t audio_set_volume(int8_t vol);
+
 bool ir_comand_validate(uint64_t ir_code);
 void ir_command_audio(uint64_t ir_code);
 void ir_command();

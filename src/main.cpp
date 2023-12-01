@@ -1,41 +1,10 @@
 #include "header.h"
-#ifdef DISPLAY_SSD1306
-#include "hw/ssd1306.h"
-#endif
-#ifdef DISPLAY_NO
-#include "hw/nodisplay.h"
-#endif
 
 void init()
 {
     Serial.begin(115200);
     pinMode(RELAY_PIN, OUTPUT);
     digitalWrite(RELAY_PIN, HIGH);
-}
-void audio_init()
-{
-
-    if (is_audio < 1)
-        ESP.restart();
-    if (audio != nullptr)
-    {
-        audio->stopSong();
-        delete audio;
-        audio = nullptr;
-        delay(1000);
-    }
-    if (audio == nullptr)
-        audio = new Audio(false);
-
-    audio->setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT);
-
-    if (time_hour < MUTE_HOUR_MIN || time_hour > MUTE_HOUR_MAX)
-        audio_set_volume(1);
-    else
-        audio_set_volume(play.audio_volume);
-
-    is_audio = 1;
-    player_status = PLAYER_READY;
 }
 void console_init()
 {
@@ -81,7 +50,9 @@ void web_init()
                 ws_json_esp_status();  
                 ws_json_user_setting();           
                 request->send_P(200, "text/html", "ok"); });
+#ifdef ESP32_PLATFORM_S3
     AsyncElegantOTA.begin(&server);
+#endif
     server.begin();
 }
 
@@ -110,130 +81,6 @@ void wifi_init()
 
     Serial.print(F("WIFI AP: "));
     Serial.println(WiFi.localIP());
-}
-
-void audio_play_next(const int8_t idx)
-{
-    String jsonBuffer;
-    if (audio == nullptr)
-        return;
-    String serverPath = SITE_URL + get_radio_mode_url() + "_next&user=" + USER_ID;
-    if (idx > PLAY_TRACK_NEXT)
-        serverPath = serverPath + "&idx=ablum_" + idx;
-    else if (idx == PLAY_ALBUM_NEXT)
-        serverPath = serverPath + "&idx=ablum_next";
-    else if (idx == PLAY_ALBUM_PREV)
-        serverPath = serverPath + "&idx=ablum_prev";
-    else if (idx == PLAY_TRACK_PREV)
-        serverPath = serverPath + "&idx=track_prev";
-    else if (idx == PLAY_TRACK)
-        serverPath = serverPath + "&idx=track_set";
-
-    jsonBuffer = httpGETRequest(serverPath.c_str());
-    JSONVar myObject = JSON.parse(jsonBuffer);
-
-    if (JSON.typeof(myObject) == "undefined")
-    {
-        Serial.println("Parsing input failed!");
-        lcd_show_system_info("error play track");
-        lcd_clear();
-        audio_play_next();
-        return;
-    }
-    audio->stopSong();
-    player_status = PLAYER_STOP;
-
-    if (play.radio_mode == SET_MODE_RES_ONLINE)
-        audio_init();
-    delay(500);
-    bool res = false;
-    if (myObject["directLink"] != null)
-    {
-        strcpy(play.play_url, myObject["directLink"]);
-        res = audio->connecttohost(play.play_url);
-    }
-    if (res == false)
-    {
-        audio->stopSong();
-        player_status = PLAYER_STOP;
-        audio_play_next();
-    }
-
-    ws_json_play_next(jsonBuffer);
-
-    player_status = PLAYER_PLAY;
-    strcpy(play.title, myObject["title"]);
-    strcpy(play.artist, myObject["artist"]);
-
-    //????
-
-    if (myObject["idx"] != null)
-    {
-        play.play_id = atol(myObject["idx"]);
-    }
-
-    screen_mode = CONST_SCREEN_PLAY;
-    lcd_clear();
-    lcd_show_progress_bar(1);
-    lcd_show_audio_title();
-    lcd_show_audio_info(1);
-
-    ws_json_player();
-}
-void audio_play_pause()
-{
-    if (audio == nullptr)
-        return;
-    if (player_status == PLAYER_PLAY)
-    {
-        audio->stopSong();
-        player_status = PLAYER_PAUSE;
-        ws_json_player();
-        delay(100);
-        return;
-    }
-    if (player_status == PLAYER_PAUSE)
-    {
-        audio->connecttohost(play.play_url);
-        player_status = PLAYER_PLAY;
-        ws_json_player();
-        delay(100);
-        return;
-    }
-    delay(100);
-    audio_play_next();
-}
-void audio_stop()
-{
-    if (audio == nullptr)
-        return;
-    if (player_status == PLAYER_PLAY)
-    {
-        audio->stopSong();
-        player_status = PLAYER_PAUSE;
-        ws_json_player();
-        delay(100);
-        return;
-    }
-}
-void audio_set_eq()
-{
-    if (audio == nullptr)
-        return;
-    audio->setTone(play.audio_eq1, play.audio_eq2, play.audio_eq3);
-}
-int8_t audio_set_volume(int8_t vol)
-{
-    if (audio == nullptr)
-        return 0;
-    audio->setVolume(vol);
-    return audio->getVolume();
-}
-int8_t audio_get_volume()
-{
-    if (audio == nullptr)
-        return 0;
-    return audio->getVolume();
 }
 
 bool ir_comand_validate(uint64_t ir_code)
@@ -477,14 +324,13 @@ void ir_command()
             lcd_on();
         }
         need_display_off = 1;
-        if (audio != nullptr and is_audio == 1)
+        if (is_audio == 1)
         {
             ir_command_audio(ir_code);
         }
     }
     irrecv.resume();
 }
-
 
 String get_radio_mode_url()
 {
@@ -609,8 +455,9 @@ void setup()
     USER_ID = WiFi.macAddress();
     Serial.print("USER_ID = ");
     Serial.println(USER_ID);
-    user_setting_get();
     audio_init();
+    user_setting_get();
+
     lcd_show_player_status();
 
     web_init();
@@ -711,53 +558,6 @@ void loop()
             }
         }
     }
-    if (is_audio and audio != nullptr)
-        audio->loop();
-}
 
-void audio_eof_stream(const char *info)
-{
-    ws_json_player_status(info, "audio_eof_stream");
-    audio_play_next();
-}
-void audio_info(const char *info)
-{
-    Serial.print("audio_info     ");
-    Serial.println(info);
-    ws_json_player_status(info, "audio_info");
-}
-void audio_id3data(const char *info)
-{ // id3 metadata
-    Serial.print("id3data     ");
-    Serial.println(info);
-    ws_json_player_status(info, "audio_id3data");
-}
-void audio_eof_mp3(const char *info)
-{ // end of file
-    Serial.print("eof_mp3     ");
-    Serial.println(info);
-    ws_json_player_status(info, "audio_eof_mp3");
-}
-void audio_showstation(const char *info)
-{
-    //? load
-    if (strlen(play.artist))
-        strcpy(play.artist, info);
-    ws_json_player_status(info, "audio_showstation");
-    ws_json_player();
-}
-void audio_showstreamtitle(const char *info)
-{
-    if (strlen(play.title))
-        strcpy(play.title, info);
-    ws_json_player_status(info, "audio_showstreamtitle");
-    ws_json_player();
-}
-void audio_bitrate(const char *info)
-{
-    ws_json_player_status(info, "audio_bitrate");
-}
-void audio_lasthost(const char *info)
-{ // stream URL played
-    ws_json_player_status(info, "audio_lasthost");
+    audio.loop();
 }
