@@ -3,20 +3,20 @@
 
 #include "Arduino.h"
 #include "WiFiMulti.h"
-#include "HTTPClient.h"
+
 #include "hw.h"
 
 #include "Arduino_JSON.h"
 #include <IRremoteESP8266.h>
 #include <IRrecv.h>
-#include <ir_code.h>
+#include "../hw/ir_code.h"
 
-#include "const.h"
-#include "helper.h"
+#include "../const.h"
+#include "../helper.h"
 #ifdef ESP32_PLATFORM_S3
 #include "AsyncElegantOTA.h"
 #endif
-#include "web_server.h"
+#include "../web/web_server.h"
 #include "main.h"
 
 // define WIFI_SSID WIFI_PSW
@@ -81,17 +81,20 @@ int8_t screen_mode = CONST_SCREEN_IDL;
 #endif
 
 #ifdef DAC_VS1053
-#include "hw/dac_vs1053.h"
+#include "../hw/dac_vs1053.h"
 #endif
 
 #ifdef DISPLAY_SSD1306
-#include "hw/ssd1306.h"
+#include "../hw/ssd1306.h"
 #endif
 
 #ifdef DISPLAY_NO
-#include "hw/nodisplay.h"
+#include "../hw/nodisplay.h"
 #endif
 
-#include "ws.h"
+#include "../web/http.h"
+#include "../web/ws.h"
+
+
 
 #endif
