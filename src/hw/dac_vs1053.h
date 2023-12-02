@@ -3,7 +3,6 @@
 #include <SPI.h>
 #include "vs1053_ext.h"
 
-
 VS1053 audio(VS1053_CS, VS1053_DCS, VS1053_DREQ, VSPI, VS1053_MOSI, VS1053_MISO, VS1053_SCK);
 
 void audio_init()
@@ -21,72 +20,17 @@ void audio_init()
     is_audio = 1;
     player_status = PLAYER_READY;
 }
-void audio_play_next(int8_t idx = PLAY_TRACK_NEXT)
+
+void audio_stop_host()
 {
-
-    String jsonBuffer;
-
-    String serverPath = SITE_URL + get_radio_mode_url() + "_next&user=" + USER_ID;
-    if (idx > PLAY_TRACK_NEXT)
-        serverPath = serverPath + "&idx=ablum_" + idx;
-    else if (idx == PLAY_ALBUM_NEXT)
-        serverPath = serverPath + "&idx=ablum_next";
-    else if (idx == PLAY_ALBUM_PREV)
-        serverPath = serverPath + "&idx=ablum_prev";
-    else if (idx == PLAY_TRACK_PREV)
-        serverPath = serverPath + "&idx=track_prev";
-    else if (idx == PLAY_TRACK)
-        serverPath = serverPath + "&idx=track_set";
-
-    jsonBuffer = httpGETRequest(serverPath.c_str());
-    JSONVar myObject = JSON.parse(jsonBuffer);
-
-    if (JSON.typeof(myObject) == "undefined")
-    {
-        Serial.println("Parsing input failed!");
-        lcd_show_system_info("error play track");
-        lcd_clear();
-        audio_play_next();
-        return;
-    }
-   // audio.stop_mp3client();
-    player_status = PLAYER_STOP;
-
-
-    bool res = false;
-    if (myObject["directLink"] != null)
-    {
-        strcpy(play.play_url, myObject["directLink"]);
-        res = audio.connecttohost(play.play_url);
-    }
-    if (res == false)
-    {
-        audio.stop_mp3client();
-        player_status = PLAYER_STOP;
-        audio_play_next();
-    }
-
-    ws_json_play_next(jsonBuffer);
-
-    player_status = PLAYER_PLAY;
-    strcpy(play.title, myObject["title"]);
-    strcpy(play.artist, myObject["artist"]);
-
-    //????
-
-    if (myObject["idx"] != null)
-    {
-        play.play_id = atol(myObject["idx"]);
-    }
-
-    screen_mode = CONST_SCREEN_PLAY;
-    lcd_clear();
-    lcd_show_progress_bar(1);
-    lcd_show_audio_title();
-    lcd_show_audio_info(1);
-
-    ws_json_player();
+    if (audio.getFileSize()>0) audio.stop_mp3client();
 }
+
+bool audio_start_host(char* url)
+{
+    return audio.connecttohost(url);
+}
+
 void audio_play_pause()
 {
 
@@ -107,14 +51,14 @@ void audio_play_pause()
         return;
     }
     delay(100);
-    audio_play_next();
+    audio_play_next(PLAY_TRACK_NEXT);
 }
 void audio_stop()
 {
 
     if (player_status == PLAYER_PLAY)
     {
-        audio.stop_mp3client();
+        audio_stop_host();
         player_status = PLAYER_PAUSE;
         ws_json_player();
         delay(100);
@@ -124,7 +68,7 @@ void audio_stop()
 void audio_set_eq()
 {
 
-   // audio.setTone(play.audio_eq1, play.audio_eq2, play.audio_eq3);
+    // audio.setTone(play.audio_eq1, play.audio_eq2, play.audio_eq3);
 }
 int8_t audio_set_volume(int8_t vol)
 {
@@ -136,7 +80,6 @@ int8_t audio_get_volume()
 
     return audio.getVolume();
 }
-
 
 int32_t audio_get_bitrate()
 {
@@ -153,11 +96,10 @@ int32_t audio_get_current_duration()
     return audio.getFileSize();
 };
 
-
 void vs1053_eof_stream(const char *info)
 {
     ws_json_player_status(info, "audio_eof_stream");
-    audio_play_next();
+    audio_play_next(PLAY_TRACK_NEXT);
 }
 void vs1053_info(const char *info)
 {

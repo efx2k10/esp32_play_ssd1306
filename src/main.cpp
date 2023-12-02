@@ -83,6 +83,74 @@ void wifi_init()
     Serial.println(WiFi.localIP());
 }
 
+void audio_play_next(int8_t idx = PLAY_TRACK_NEXT)
+{
+    String jsonBuffer;
+
+    String serverPath = SITE_URL + get_radio_mode_url() + "_next&user=" + USER_ID;
+    if (idx > PLAY_TRACK_NEXT)
+        serverPath = serverPath + "&idx=ablum_" + idx;
+    else if (idx == PLAY_ALBUM_NEXT)
+        serverPath = serverPath + "&idx=ablum_next";
+    else if (idx == PLAY_ALBUM_PREV)
+        serverPath = serverPath + "&idx=ablum_prev";
+    else if (idx == PLAY_TRACK_PREV)
+        serverPath = serverPath + "&idx=track_prev";
+    else if (idx == PLAY_TRACK)
+        serverPath = serverPath + "&idx=track_set";
+
+    jsonBuffer = httpGETRequest(serverPath.c_str());
+    JSONVar myObject = JSON.parse(jsonBuffer);
+
+    if (JSON.typeof(myObject) == "undefined")
+    {
+        Serial.println("Parsing input failed!");
+        lcd_show_system_info("error play track");
+        lcd_clear();
+        audio_play_next(PLAY_TRACK_NEXT);
+        return;
+    }
+    audio_stop_host();
+    player_status = PLAYER_STOP;
+
+    if (play.radio_mode == SET_MODE_RES_ONLINE)
+        audio_init();
+    delay(500);
+    bool res = false;
+    if (myObject["directLink"] != null)
+    {
+        strcpy(play.play_url, myObject["directLink"]);
+        res = audio_start_host(play.play_url);
+    }
+    if (res == false)
+    {
+        audio_stop_host();
+        player_status = PLAYER_STOP;
+        audio_play_next(PLAY_TRACK_NEXT);
+    }
+
+    ws_json_play_next(jsonBuffer);
+
+    player_status = PLAYER_PLAY;
+    strcpy(play.title, myObject["title"]);
+    strcpy(play.artist, myObject["artist"]);
+
+    //????
+
+    if (myObject["idx"] != null)
+    {
+        play.play_id = atol(myObject["idx"]);
+    }
+
+    screen_mode = CONST_SCREEN_PLAY;
+    lcd_clear();
+    lcd_show_progress_bar(1);
+    lcd_show_audio_title();
+    lcd_show_audio_info(1);
+
+    ws_json_player();
+}
+
 bool ir_comand_validate(uint64_t ir_code)
 {
     switch (ir_code)
@@ -140,7 +208,7 @@ void ir_command_audio(uint64_t ir_code)
         delay(500);
         break;
     case IR_CODE_PLAY_NEXT:
-        audio_play_next();
+        audio_play_next(PLAY_TRACK_NEXT);
         break;
     case IR_CODE_PLAY_PREV:
         if (play.set_mode != SET_MODE_RES_MYWAVE)
@@ -248,25 +316,25 @@ void ir_command_audio(uint64_t ir_code)
             play.set_mode = SET_MODE_RES_MYWAVE;
         play.radio_mode = play.set_mode;
         lcd_show_setting_mode();
-        audio_play_next();
+        audio_play_next(PLAY_TRACK_NEXT);
         break;
     case IR_CODE_CHANGE_RESOUCE_WAVE:
         play.set_mode = SET_MODE_RES_MYWAVE;
         play.radio_mode = play.set_mode;
         lcd_show_setting_mode();
-        audio_play_next();
+        audio_play_next(PLAY_TRACK_NEXT);
         break;
     case IR_CODE_CHANGE_RESOUCE_FAVORITE:
         play.set_mode = SET_MODE_RES_MYFAVORITE;
         play.radio_mode = play.set_mode;
         lcd_show_setting_mode();
-        audio_play_next();
+        audio_play_next(PLAY_TRACK_NEXT);
         break;
     case IR_CODE_CHANGE_RESOUCE_RADIO:
         play.set_mode = SET_MODE_RES_ONLINE;
         play.radio_mode = play.set_mode;
         lcd_show_setting_mode();
-        audio_play_next();
+        audio_play_next(PLAY_TRACK_NEXT);
         break;
     case IR_CODE_NUMBER_1:
         audio_play_next(1);
