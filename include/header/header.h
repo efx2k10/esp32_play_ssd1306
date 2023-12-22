@@ -88,6 +88,10 @@ int8_t screen_mode = CONST_SCREEN_IDL;
 #include "../hw/ssd1306.h"
 #endif
 
+#ifdef DISPLAY_SSD1306X32MINI
+#include "../hw/ssd1306x32mini.h"
+#endif
+
 #ifdef DISPLAY_NO
 #include "../hw/nodisplay.h"
 #endif
